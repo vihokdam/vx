@@ -9,13 +9,28 @@
 #property strict
 
 #define MAGICMA  20210820
-string obj_text_name                = "obj_name";
+string OBJ_TEXT_NAME           = "obj_name";
 
 input ENUM_TIMEFRAMES TF       = PERIOD_H1;
-input uint MA_Fast             = 21;
-input uint MA_Slow             = 50;
+input uint MA_PERIOD           = 50;
 input uint RSI                 = 9;
 
+//+------------------------------------------------------------------+
+//| Big Black bar identify function                                  |
+//+------------------------------------------------------------------+
+bool IsBigBlackBar(double open, double high, double low, double close, double candleWickPercentage=0.15)
+  {
+   double wick;
+   if(close > open){
+      wick = high - close;
+   }else if(close < open){
+      wick = close - low;
+   }else{
+      return false;
+   }
+   if(wick <= ((high - low) * candleWickPercentage)) return true;
+   return false;   
+  }
 //+------------------------------------------------------------------+
 //| Check for open order conditions                                  |
 //+------------------------------------------------------------------+
@@ -31,14 +46,15 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 //| Check for open order conditions                                  |
 //+------------------------------------------------------------------+
-int CheckForOpen(double ma_fast, double ma_slow, double rsi, double close)
+int CheckForOpen(double ma, double rsi, double high, double low, uint rsiUp=65, uint rsiDn=35)
   {
+   
    //--- Up Trend
-   if(ma_fast > ma_slow && close > ma_slow && rsi < 50){
+   if(low > ma && rsi < rsiUp){
       return OP_BUY;
    }
    //--- Down Trend
-   else if(ma_fast < ma_slow && close < ma_slow && rsi > 50){
+   else if(high < ma && rsi > rsiDn){
       return OP_SELL;
    }
    return -1;
@@ -68,7 +84,7 @@ void CurrentOrders(string symbol, uint &buys, uint &sells)
 int OnInit()
   {
 //---
-   TextCreate(0,obj_text_name);
+   TextCreate(0,OBJ_TEXT_NAME);
 //---
    return(INIT_SUCCEEDED);
   }
@@ -78,7 +94,7 @@ int OnInit()
 void OnDeinit(const int reason)
   {
 //---
-   TextDelete(0,obj_text_name);
+   TextDelete(0,OBJ_TEXT_NAME);
   }
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
@@ -88,18 +104,27 @@ void OnTick()
 //---
    //--- check Bars is less than Indicators input
    uint bars = Bars;
-   if(bars < RSI || bars < MA_Fast || bars < MA_Slow){
+   if(bars < RSI || bars < MA_PERIOD){
       PrintFormat(__FUNCTION__,"Error: Not enough Bars (%d) for Indicators!",bars);
       return;
    }
    //--- go trading only for first tiks of new bar
    if(Volume[0] > 1) return;
    
-   //--- get data from indicators
-   double ma_fast = iMA(NULL,TF,MA_Fast,0,MODE_SMA,PRICE_CLOSE,1);
-   double ma_slow = iMA(NULL,TF,MA_Slow,0,MODE_SMA,PRICE_CLOSE,1);
+   //--- get data from indicators   
+   double ma = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
    double rsi = iRSI(NULL,TF,RSI,PRICE_CLOSE,1);
+   double open = Open[1];
+   double high = High[1];
+   double low = Low[1];
    double close = Close[1];
+   
+   if(IsTradeAllowed() && IsBigBlackBar(open, high, low, close)){
+      int op = CheckForOpen(ma, rsi, high, low);
+      if(op > -1){
+         if(OpenPosition(op) > 0) Print("Open Position success.");
+      }
+   }
    
   }
 //+------------------------------------------------------------------+
