@@ -108,6 +108,15 @@ void OnTick()
       PrintFormat(__FUNCTION__,"Error: Not enough Bars (%d) for Indicators!",bars);
       return;
    }
+   
+   //--- draw label on chart
+   string text = StringConcatenate("$",DoubleToStr(AccountProfit(),2),
+   " [",DoubleToStr(AccountEquity(),2),"]",
+   " ",DoubleToStr(AccountInfoDouble(ACCOUNT_MARGIN_LEVEL),2),"%",
+   " ",TimeToString(TimeCurrent(),TIME_MINUTES));
+   TextChange(0,OBJ_TEXT_NAME,text);
+   TextMove(0,OBJ_TEXT_NAME,Time[0]+(Time[0]-Time[1]),Ask);
+   
    //--- go trading only for first tiks of new bar
    if(Volume[0] > 1) return;
    
