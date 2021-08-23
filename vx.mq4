@@ -46,15 +46,15 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 //| Check for open order conditions                                  |
 //+------------------------------------------------------------------+
-int CheckForOpen(double ma, double rsi, double high, double low, uint rsiUp=65, uint rsiDn=35)
+int CheckForOpen(double ma, double rsi, double open, double high, double low, double close, uint rsiUp=65, uint rsiDn=35)
   {
    
    //--- Up Trend
-   if(low > ma && rsi > rsiUp){
+   if(low > ma && close > open && rsi > rsiUp){
       return OP_BUY;
    }
    //--- Down Trend
-   else if(high < ma && rsi < rsiDn){
+   else if(high < ma && close < open && rsi < rsiDn){
       return OP_SELL;
    }
    return -1;
@@ -129,7 +129,7 @@ void OnTick()
    double close = Close[1];
    
    if(IsTradeAllowed() && IsBigBlackBar(open, high, low, close)){
-      int op = CheckForOpen(ma, rsi, high, low);
+      int op = CheckForOpen(ma, rsi, open, high, low, close);
       if(op > -1){
          if(OpenPosition(op) > 0) Print("Open Position success.");
       }
