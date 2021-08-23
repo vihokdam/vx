@@ -50,11 +50,11 @@ int CheckForOpen(double ma, double rsi, double high, double low, uint rsiUp=65, 
   {
    
    //--- Up Trend
-   if(low > ma && rsi < rsiUp){
+   if(low > ma && rsi > rsiUp){
       return OP_BUY;
    }
    //--- Down Trend
-   else if(high < ma && rsi > rsiDn){
+   else if(high < ma && rsi < rsiDn){
       return OP_SELL;
    }
    return -1;
