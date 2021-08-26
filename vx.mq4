@@ -14,7 +14,20 @@ string OBJ_TEXT_NAME           = "obj_name";
 input ENUM_TIMEFRAMES TF       = PERIOD_H1;
 input uint MA_PERIOD           = 50;
 input uint RSI                 = 9;
+input uint OVERBOUGHT          = 70;
+input uint OVERSOLD            = 30;
 
+//+------------------------------------------------------------------+
+//| Bigest bar identify function                                  |
+//+------------------------------------------------------------------+
+bool IsBigestBar(int period=9){
+   double size = High[1] - Low[1];
+   for(int i=1;i<=period;i++){     
+      if((High[i] - Low[i]) > size) break;
+      if(i==period) return true;
+   }
+   return false;
+}
 //+------------------------------------------------------------------+
 //| Big Black bar identify function                                  |
 //+------------------------------------------------------------------+
@@ -32,7 +45,20 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
    return false;   
   }
 //+------------------------------------------------------------------+
-//| Check for open order conditions                                  |
+//| Check for close order                                            |
+//+------------------------------------------------------------------+
+int CheckForClose(double open, double close, double rsi){
+   if(IsBigestBar(RSI)){
+      if(close > open && rsi <= OVERBOUGHT){
+         return OP_BUY;
+      }else if(close < open && rsi >= OVERSOLD){
+         return OP_SELL;
+      }
+   }
+   return -1;
+}
+//+------------------------------------------------------------------+
+//| open order position                                              |
 //+------------------------------------------------------------------+
 int OpenPosition(int OP, double lots=0.01)
    {
@@ -46,15 +72,14 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 //| Check for open order conditions                                  |
 //+------------------------------------------------------------------+
-int CheckForOpen(double ma, double rsi, double open, double high, double low, double close, uint rsiUp=65, uint rsiDn=35)
-  {
-   
+int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
+  {   
    //--- Up Trend
-   if(low > ma && close > open && rsi > rsiUp){
+   if(low > ma && close > open && rsi >= OVERBOUGHT){
       return OP_BUY;
    }
    //--- Down Trend
-   else if(high < ma && close < open && rsi < rsiDn){
+   else if(high < ma && close < open && rsi <= OVERSOLD){
       return OP_SELL;
    }
    return -1;
