@@ -37,16 +37,13 @@ bool IsBigestBar(uint startBar=1, uint period=5){
 //+------------------------------------------------------------------+
 bool IsBigBlackBar(double open, double high, double low, double close, double candleWickPercentage=0.15)
   {
-   double wick;
-   if(close > open){
-      wick = high - close;
-   }else if(close < open){
-      wick = close - low;
-   }else{
-      return false;
+   double body = (high - low) * candleWickPercentage;   
+   if((high - close) <= body){
+      return true;
+   }else if((close - low) <= body){
+      return true;
    }
-   if(wick <= ((high - low) * candleWickPercentage)) return true;
-   return false;   
+   return false;
   }
 //+------------------------------------------------------------------+
 //| StopLoss                                                         |
@@ -116,7 +113,7 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
   {   
-   if(low > ma && close > open && rsi >= OVERBOUGHT){
+   if(low > ma && close > open && rsi >= 50 && IsBigBlackBar(open, high, low, close)){
       return OP_BUY;
    }
    return -1;
