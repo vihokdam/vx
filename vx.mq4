@@ -3,6 +3,8 @@
 //|                                                         VihokDam |
 //|                                                                  |
 //+------------------------------------------------------------------+
+#include <stderror.mqh>
+#include <stdlib.mqh>
 #property copyright "VihokDam"
 #property link      ""
 #property version   "1.00"
@@ -18,13 +20,15 @@ input uint OVERBOUGHT          = 70;
 input uint OVERSOLD            = 30;
 
 //+------------------------------------------------------------------+
-//| Bigest bar identify function                                  |
+//| Bigest bar identify function                                     |
 //+------------------------------------------------------------------+
-bool IsBigestBar(int period=9){
-   double size = High[1] - Low[1];
-   for(int i=1;i<=period;i++){     
+bool IsBigestBar(uint startBar=1, uint period=5){
+   if(startBar >= period) return false;
+   uint bars = startBar + period;
+   double size = High[startBar] - Low[startBar];
+   for(uint i=startBar;i<=bars;i++){
       if((High[i] - Low[i]) > size) break;
-      if(i==period) return true;
+      if(i==bars) return true;
    }
    return false;
 }
@@ -44,6 +48,26 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
    if(wick <= ((high - low) * candleWickPercentage)) return true;
    return false;   
   }
+//+------------------------------------------------------------------+
+//| StopLoss                                                         |
+//+------------------------------------------------------------------+
+void StopLoss(double sl=0.01){
+   double sl_point = MathAbs(AccountBalance() * sl) * -1;
+   for(int i=0;i<OrdersTotal();i++)
+   {
+      if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
+      if(OrderMagicNumber()!=MAGICMA || OrderSymbol()!=Symbol()) continue;
+      if(OrderProfit() <= sl_point){
+         if(OrderType() == OP_BUY){
+            if(!OrderClose(OrderTicket(),OrderLots(),Bid,3))
+               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
+         }else if(OrderType() == OP_SELL){
+            if(!OrderClose(OrderTicket(),OrderLots(),Ask,3))
+               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
+         }
+      }
+   }   
+}
 //+------------------------------------------------------------------+
 //| Check for close order                                            |
 //+------------------------------------------------------------------+
@@ -70,17 +94,12 @@ int OpenPosition(int OP, double lots=0.01)
       return -1;
    }
 //+------------------------------------------------------------------+
-//| Check for open order conditions                                  |
+//| Check for open order                                             |
 //+------------------------------------------------------------------+
 int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
   {   
-   //--- Up Trend
    if(low > ma && close > open && rsi >= OVERBOUGHT){
       return OP_BUY;
-   }
-   //--- Down Trend
-   else if(high < ma && close < open && rsi <= OVERSOLD){
-      return OP_SELL;
    }
    return -1;
   }
@@ -143,23 +162,25 @@ void OnTick()
    TextMove(0,OBJ_TEXT_NAME,Time[0]+(Time[0]-Time[1]),Ask);
    
    //--- go trading only for first tiks of new bar
-   if(Volume[0] > 1) return;
+   if(Volume[0] > 1){
    
-   //--- get data from indicators   
-   double ma = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
-   double rsi = iRSI(NULL,TF,RSI,PRICE_CLOSE,1);
-   double open = Open[1];
-   double high = High[1];
-   double low = Low[1];
-   double close = Close[1];
-   
-   if(IsTradeAllowed() && IsBigBlackBar(open, high, low, close)){
-      int op = CheckForOpen(ma, rsi, open, high, low, close);
-      if(op > -1){
-         if(OpenPosition(op) > 0) Print("Open Position success.");
+      //--- get data from indicators   
+      double ma = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
+      double rsi = iRSI(NULL,TF,RSI,PRICE_CLOSE,1);
+      double open = Open[1];
+      double high = High[1];
+      double low = Low[1];
+      double close = Close[1];
+      
+      if(IsTradeAllowed() && IsBigBlackBar(open, high, low, close)){
+         int op = CheckForOpen(ma, rsi, open, high, low, close);
+         if(op > -1){
+            if(OpenPosition(op) > 0) Print("Open Position success.");
+         }
       }
+   }else if(IsTradeAllowed()){
+      StopLoss();
    }
-   
   }
 //+------------------------------------------------------------------+
 
