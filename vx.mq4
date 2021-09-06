@@ -68,9 +68,9 @@ void StopLoss(double sl=0.01){
 //+------------------------------------------------------------------+
 //| close order                                                      |
 //+------------------------------------------------------------------+
-int ClosePosition(double tp=0.01){
+int ClosePosition(double tp=0.005){
    int counter = 0;
-   double tp_point = AccountEquity() * tp;
+   double tp_point = MathCeil(AccountEquity() * tp);
    if(tp_point <= 0) return -1;
    for(int i=0;i<OrdersTotal();i++)
    {
@@ -90,8 +90,8 @@ int ClosePosition(double tp=0.01){
 //+------------------------------------------------------------------+
 //| Check for close order                                            |
 //+------------------------------------------------------------------+
-int CheckForClose(double ma, double rsi, double open, double close, double low){
-   if(IsBigestBar(1) && low > ma && close > open && rsi < OVERBOUGHT){
+int CheckForClose(double ma, double rsi, double open, double high, double low, double close){   
+   if(low > ma && close > open && rsi >= OVERBOUGHT && IsBigBlackBar(open, high, low, close)){
       return OP_SELL;
    }
    return -1;
@@ -113,7 +113,8 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
   {   
-   if(low > ma && close > open && rsi >= 50 && IsBigBlackBar(open, high, low, close)){
+   //if(low > ma && close > open && rsi >= 50 && IsBigBlackBar(open, high, low, close)){   
+   if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT && !IsBigestBar()){
       return OP_BUY;
    }
    return -1;
@@ -177,29 +178,28 @@ void OnTick()
    TextMove(0,OBJ_TEXT_NAME,Time[0]+(Time[0]-Time[1]),Ask);
    
    if(!IsTradeAllowed()) return;
+   
    //--- go trading only for first tiks of new bar   
    if(Volume[0] > 1){
       StopLoss();
    }else{
       //--- get data from indicators   
       double ma = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
-      double rsi = iRSI(NULL,TF,RSI,PRICE_CLOSE,1);
+      double rsi = MathFloor(iRSI(NULL,TF,RSI,PRICE_CLOSE,1));
       double open = Open[1];
       double high = High[1];
       double low = Low[1];
       double close = Close[1];
-      
-      if(IsTradeAllowed() && IsBigBlackBar(open, high, low, close)){
-         int op_open = CheckForOpen(ma, rsi, open, high, low, close);
-         if(op_open >= 0){
-            if(OpenPosition(op_open) > 0) Print("Open Position success.");
-         }
-         
-         int op_close = CheckForClose(ma, rsi, open, close, low);
-         if(op_close >= 0){
-            if(ClosePosition() > 0) Print("Close Position success.");
-         }
+            
+      int op_open = CheckForOpen(ma, rsi, open, high, low, close);
+      if(op_open >= 0){
+         if(OpenPosition(op_open) > 0) Print("Open Position success.");
       }
+      
+      int op_close = CheckForClose(ma, rsi, open, high, low, close);
+      if(op_close >= 0){
+         if(ClosePosition() > 0) Print("Close Position success.");
+      }      
    }
   }
 //+------------------------------------------------------------------+
