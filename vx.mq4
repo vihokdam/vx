@@ -15,7 +15,7 @@ string OBJ_TEXT_NAME           = "obj_name";
 
 input ENUM_TIMEFRAMES TF       = PERIOD_H1;
 input uint MA_PERIOD           = 50;
-input uint RSI                 = 9;
+input uint RSI                 = 14;
 input uint OVERBOUGHT          = 70;
 input uint OVERSOLD            = 30;
 
@@ -91,8 +91,12 @@ int ClosePosition(double tp=0.005){
 //| Check for close order                                            |
 //+------------------------------------------------------------------+
 int CheckForClose(double ma, double rsi, double open, double high, double low, double close){   
-   if(low > ma && close > open && rsi >= OVERBOUGHT && IsBigBlackBar(open, high, low, close)){
-      return OP_SELL;
+   if(IsBigBlackBar(open, high, low, close)){
+      if(low > ma && close > open && rsi >= OVERBOUGHT){
+         return OP_SELL;
+      }else if(high < ma && close < open && rsi <= OVERSOLD){
+         return OP_BUY;
+      }
    }
    return -1;
 }
@@ -113,9 +117,10 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
   {   
-   //if(low > ma && close > open && rsi >= 50 && IsBigBlackBar(open, high, low, close)){   
-   if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT && !IsBigestBar()){
+   if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
       return OP_BUY;
+   }else if(high < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
+      return OP_SELL;
    }
    return -1;
   }
@@ -193,7 +198,11 @@ void OnTick()
             
       int op_open = CheckForOpen(ma, rsi, open, high, low, close);
       if(op_open >= 0){
-         if(OpenPosition(op_open) > 0) Print("Open Position success.");
+         if(low > ma && OpenPosition(op_open) > 0){
+            Print("[B]Open buy position success!!!");
+         }else if(high < ma && OpenPosition(op_open) > 0){
+            Print("[S]Open sell position success!!!");
+         }
       }
       
       int op_close = CheckForClose(ma, rsi, open, high, low, close);
