@@ -117,10 +117,12 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
   {   
-   if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
-      return OP_BUY;
-   }else if(high < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
-      return OP_SELL;
+   if(IsBigBlackBar(open, high, low, close)){
+      if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
+         return OP_BUY;
+      }else if(high < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
+         return OP_SELL;
+      }
    }
    return -1;
   }
