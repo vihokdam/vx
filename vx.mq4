@@ -35,12 +35,12 @@ bool IsBigestBar(uint startBar=1, uint period=5){
 //+------------------------------------------------------------------+
 //| Big Black bar identify function                                  |
 //+------------------------------------------------------------------+
-bool IsBigBlackBar(double open, double high, double low, double close, double candleWickPercentage=0.15)
+bool IsBigBlackBar(double open, double high, double low, double close, double candleWickPercentage=0.20)
   {
-   double body = (high - low) * candleWickPercentage;   
-   if((high - close) <= body){
+   double candleWick = (high - low) * candleWickPercentage;   
+   if((high - close) <= candleWick && (open - low) <= candleWick){
       return true;
-   }else if((close - low) <= body){
+   }else if((close - low) <= candleWick && (high - open) <= candleWick){
       return true;
    }
    return false;
