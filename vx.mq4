@@ -20,6 +20,17 @@ input uint OVERBOUGHT          = 70;
 input uint OVERSOLD            = 30;
 
 //+------------------------------------------------------------------+
+//| Doji identify function                                           |
+//+------------------------------------------------------------------+
+int Doji(double open, double high, double low, double close, double dojiBodyPercentage=0.50){
+   double dojiBody = (high - low) * dojiBodyPercentage;
+   //--- Dragonfly Doji return 0
+   if((high - close) <= dojiBody && (high - open) <= dojiBody) return 0;
+   //--- Gravestone Doji return 1
+   if((close - low) <= dojiBody && (open - low) <= dojiBody) return 1;   
+   return -1;
+}
+//+------------------------------------------------------------------+
 //| Bigest bar identify function                                     |
 //+------------------------------------------------------------------+
 bool IsBigestBar(uint startBar=1, uint period=5){
@@ -117,12 +128,17 @@ int OpenPosition(int OP, double lots=0.01)
 //+------------------------------------------------------------------+
 int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
   {   
+   int doji = Doji(open, high, low, close);
    if(IsBigBlackBar(open, high, low, close)){
       if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
          return OP_BUY;
       }else if(high < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
          return OP_SELL;
       }
+   }else if(doji == 0 && close > open && rsi < OVERBOUGHT && low > ma){      
+      return OP_BUY;
+   }else if(doji == 1 && close < open && rsi > OVERSOLD && high < ma){      
+      return OP_SELL;
    }
    return -1;
   }
