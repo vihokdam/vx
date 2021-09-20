@@ -11,14 +11,17 @@
 #property strict
 
 #define MAGICMA  20210820
-string OBJ_TEXT_NAME           = "obj_name";
+#define OBJ_TEXT_NAME "obj_name"
 
 input ENUM_TIMEFRAMES TF       = PERIOD_H1;
-input uint MA_PERIOD           = 50;
-input uint RSI                 = 14;
-input uint OVERBOUGHT          = 70;
-input uint OVERSOLD            = 30;
+input double LOTSIZE           = 0.01;
+input double SL                = 0.01;
+uint MA_PERIOD                 = 50;
+uint RSI                       = 14;
+uint OVERBOUGHT                = 70;
+uint OVERSOLD                  = 30;
 
+double LotSize;
 //+------------------------------------------------------------------+
 //| Doji identify function                                           |
 //+------------------------------------------------------------------+
@@ -59,7 +62,7 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
 //+------------------------------------------------------------------+
 //| StopLoss                                                         |
 //+------------------------------------------------------------------+
-void StopLoss(double sl=0.01){
+void StopLoss(double sl) {
    double sl_point = MathAbs(AccountBalance() * sl) * -1;   
    for(int i=0;i<OrdersTotal();i++)
    {
@@ -114,8 +117,8 @@ int CheckForClose(double ma, double rsi, double open, double high, double low, d
 //+------------------------------------------------------------------+
 //| open order                                                       |
 //+------------------------------------------------------------------+
-int OpenPosition(int OP, double lots=0.01)
-   {
+int OpenPosition(int OP)              { return(OpenPosition(OP, LotSize)); }
+int OpenPosition(int OP, double lots) {
       if(OP == OP_BUY){
          return OrderSend(Symbol(),OP_BUY,lots,Ask,3,0,0,"",MAGICMA,0);
       }else if(OP == OP_SELL){
@@ -160,6 +163,25 @@ void CurrentOrders(string symbol, uint &buys, uint &sells)
         }
      }
   }
+//+------------------------------------------------------------------+
+//| Get Pip Size                                                     |
+//+------------------------------------------------------------------+
+double PipSize()              { return(PipSize(_Symbol)); }
+double PipSize(string symbol) {
+   double point  = MarketInfo(symbol, MODE_POINT);
+   int    digits = (int)MarketInfo(symbol, MODE_DIGITS);
+   return(((digits%2)==1) ? point*10 : point);
+}
+//+------------------------------------------------------------------+
+//| Get Pip Value                                                    |
+//+------------------------------------------------------------------+
+double PipValue(double lotsize)                { return(PipValue(lotsize, _Symbol)); }
+double PipValue(double lotsize, string symbol) { return(((MarketInfo(symbol,MODE_TICKVALUE)*PipSize(symbol))/MarketInfo(symbol,MODE_TICKSIZE))* lotsize); }
+//+------------------------------------------------------------------+
+//| Get Point Value                                                  |
+//+------------------------------------------------------------------+
+double PointValue(double lotsize)                { return(PointValue(lotsize, _Symbol)); }
+double PointValue(double lotsize, string symbol) { return((((MarketInfo(symbol,MODE_TICKVALUE)*PipSize(symbol))/MarketInfo(symbol,MODE_TICKSIZE))* lotsize)/10); }
 
 //+------------------------------------------------------------------+
 //| Expert initialization function                                   |
@@ -167,7 +189,22 @@ void CurrentOrders(string symbol, uint &buys, uint &sells)
 int OnInit()
   {
 //---
+   if(ObjectFind(0, OBJ_TEXT_NAME) == 0) PrintFormat("Find text");
    TextCreate(0,OBJ_TEXT_NAME);
+   
+   double min_lot = MarketInfo(_Symbol, MODE_MINLOT);
+   double max_lot = MarketInfo(_Symbol, MODE_MAXLOT);
+   if(LOTSIZE < min_lot) {
+      LotSize = min_lot;
+   }else if(LOTSIZE > max_lot) {
+      LotSize = max_lot;
+   }else{
+      LotSize = LOTSIZE;
+   }
+   
+   double point_value = PointValue(LotSize);
+   double acc_sl      = AccountBalance() * SL;
+   PrintFormat("LotSize: %.2f SL: %d%% $ %.2f %s, %d points", LotSize, (int)(SL*100), acc_sl, AccountCurrency(), (int)(acc_sl/point_value));
 //---
    return(INIT_SUCCEEDED);
   }
@@ -204,7 +241,7 @@ void OnTick()
    
    //--- go trading only for first tiks of new bar   
    if(Volume[0] > 1){
-      StopLoss();
+      StopLoss(SL);
    }else{
       //--- get data from indicators   
       double ma = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
