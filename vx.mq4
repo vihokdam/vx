@@ -16,6 +16,7 @@
 input ENUM_TIMEFRAMES TF       = PERIOD_H1;
 input double LOTSIZE           = 0.01;
 input double SL                = 0.01;
+input double TP                = 0.005;
 uint MA_PERIOD                 = 50;
 uint RSI                       = 14;
 uint OVERBOUGHT                = 70;
@@ -62,10 +63,37 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
 //+------------------------------------------------------------------+
 //| StopLoss                                                         |
 //+------------------------------------------------------------------+
+int StopLoss(double ma, double rsi, double open, double close)                                                                 { return(StopLoss(ma, rsi, open, close, SL, _Symbol, MAGICMA, 3)); }
+int StopLoss(double ma, double rsi, double open, double close, double sl, string symbol, double magic_number, int slippage) {
+   double rsi_mid = 50;
+   if(open > ma && close > open && rsi > rsi_mid) {
+      //---Stop sell
+      for(int i=0;i<OrdersTotal();i++) {
+         if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
+         if(OrderMagicNumber()!=magic_number || OrderSymbol()!=symbol) continue;
+         if(OrderType() == OP_SELL) {
+            if(!OrderClose(OrderTicket(),OrderLots(),Ask,slippage))
+               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
+         }
+      }
+      return 0;
+   }else if(open < ma && close < open && rsi < rsi_mid) {
+      //---Stop buy
+      for(int i=0;i<OrdersTotal();i++) {
+         if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
+         if(OrderMagicNumber()!=magic_number || OrderSymbol()!=symbol) continue;
+         if(OrderType() == OP_BUY) {
+            if(!OrderClose(OrderTicket(),OrderLots(),Bid,slippage))
+               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
+         }
+      }
+      return 1;
+   }
+   return -1;
+}
 void StopLoss(double sl) {
    double sl_point = MathAbs(AccountBalance() * sl) * -1;   
-   for(int i=0;i<OrdersTotal();i++)
-   {
+   for(int i=0;i<OrdersTotal();i++) {
       if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
       if(OrderMagicNumber()!=MAGICMA || OrderSymbol()!=Symbol()) continue;
       if(OrderProfit() <= sl_point){
@@ -82,7 +110,8 @@ void StopLoss(double sl) {
 //+------------------------------------------------------------------+
 //| close order                                                      |
 //+------------------------------------------------------------------+
-int ClosePosition(double tp=0.005){
+int ClosePosition()          { return(ClosePosition(TP)); }
+int ClosePosition(double tp) {
    int counter = 0;
    double tp_point = MathCeil(AccountEquity() * tp);
    if(tp_point <= 0) return -1;
@@ -258,6 +287,10 @@ void OnTick()
          }else if(high < ma && OpenPosition(op_open) > 0){
             Print("[S]Open sell position success!!!");
          }
+      }
+      
+      if(StopLoss(ma, rsi, open, close) >= 0) {
+         Print("Stop loss success.");
       }
       
       int op_close = CheckForClose(ma, rsi, open, high, low, close);
