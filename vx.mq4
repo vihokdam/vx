@@ -66,6 +66,7 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
 int StopLoss(double ma, double rsi, double open, double close)                                                                 { return(StopLoss(ma, rsi, open, close, SL, _Symbol, MAGICMA, 3)); }
 int StopLoss(double ma, double rsi, double open, double close, double sl, string symbol, double magic_number, int slippage) {
    double rsi_mid = 50;
+   int counter = 0;
    if(open > ma && close > open && rsi > rsi_mid) {
       //---Stop sell
       for(int i=0;i<OrdersTotal();i++) {
@@ -92,7 +93,7 @@ int StopLoss(double ma, double rsi, double open, double close, double sl, string
    return -1;
 }
 void StopLoss(double sl) {
-   double sl_point = MathAbs(AccountBalance() * sl) * -1;   
+   double sl_point = MathAbs(AccountBalance() * sl) * -1;
    for(int i=0;i<OrdersTotal();i++) {
       if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
       if(OrderMagicNumber()!=MAGICMA || OrderSymbol()!=Symbol()) continue;
@@ -106,6 +107,17 @@ void StopLoss(double sl) {
          }
       }
    }   
+}
+int CheckForStopLoss(double ma, double rsi, double open, double close) {
+   double rsi_mid = 50;
+   if(open < ma && close < open && rsi < rsi_mid) {
+      //---Stop buy
+      return OP_BUY;
+   }else if(open > ma && close > open && rsi > rsi_mid) {
+      //---Stop sell
+      return OP_SELL;
+   }
+   return -1;
 }
 //+------------------------------------------------------------------+
 //| close order                                                      |
@@ -129,6 +141,20 @@ int ClosePosition(double tp) {
    }
    if(counter > 0) return counter;
    return -1;
+}
+bool ClosePosition(int& tickets[])               { return(ClosePosition(tickets, 3)); }
+bool ClosePosition(int& tickets[], int slippage) {
+   int counter = 0;
+   for(int i=0;i<ArrayRange(tickets, 0);i++) {
+      if(OrderSelect(tickets[i], SELECT_BY_TICKET)==false) break;
+      if(OrderType() == OP_BUY) {
+         if(OrderClose(tickets[i], OrderLots(), Bid, slippage)) counter++;
+      }else if(OrderType() == OP_SELL) {
+         if(OrderClose(tickets[i],OrderLots(), Ask, slippage)) counter++;
+      }
+   }
+   if(ArrayRange(tickets, 0) == counter) return true;
+   return false;
 }
 //+------------------------------------------------------------------+
 //| Check for close order                                            |
@@ -193,6 +219,41 @@ void CurrentOrders(string symbol, uint &buys, uint &sells)
      }
   }
 //+------------------------------------------------------------------+
+//| get order ticket function                                        |
+//+------------------------------------------------------------------+
+bool GetOrderTickets(int& tickets[])                                   { return(GetOrderTickets(tickets, _Symbol, MAGICMA)); }
+bool GetOrderTickets(int& tickets[], int OP)                           { return(GetOrderTickets(tickets, OP, _Symbol, MAGICMA)); }
+bool GetOrderTickets(int& tickets[], int OP, string symbol, int magic) {
+   int counter = 0;
+   int ticket_counter = 0;   
+   for(int i=0;i<OrdersTotal();i++){
+      if(OrderSelect(i,SELECT_BY_POS)==false) break;
+      if(OrderSymbol() == symbol && OrderMagicNumber() == magic && OrderType() == OP) {
+         counter++;
+         ArrayResize(tickets, counter);
+         tickets[ticket_counter] = OrderTicket();
+         ticket_counter++;         
+      }
+   }
+   if(counter > 0) { return true; }
+   return false;
+}
+bool GetOrderTickets(int& tickets[], string symbol, int magic) {
+   int counter = 0;
+   int ticket_counter = 0;   
+   for(int i=0;i<OrdersTotal();i++){
+      if(OrderSelect(i,SELECT_BY_POS)==false) break;
+      if(OrderSymbol() == symbol && OrderMagicNumber() == magic) {
+         counter++;
+         ArrayResize(tickets, counter);
+         tickets[ticket_counter] = OrderTicket();
+         ticket_counter++;         
+      }
+   }
+   if(counter > 0) { return true; }
+   return false;
+}
+//+------------------------------------------------------------------+
 //| Get Pip Size                                                     |
 //+------------------------------------------------------------------+
 double PipSize()              { return(PipSize(_Symbol)); }
@@ -217,8 +278,7 @@ double PointValue(double lotsize, string symbol) { return((((MarketInfo(symbol,M
 //+------------------------------------------------------------------+
 int OnInit()
   {
-//---
-   if(ObjectFind(0, OBJ_TEXT_NAME) == 0) PrintFormat("Find text");
+//---   
    TextCreate(0,OBJ_TEXT_NAME);
    
    double min_lot = MarketInfo(_Symbol, MODE_MINLOT);
@@ -267,30 +327,31 @@ void OnTick()
    TextMove(0,OBJ_TEXT_NAME,Time[0]+(Time[0]-Time[1]),Ask);
    
    if(!IsTradeAllowed()) return;
-   
-   //--- go trading only for first tiks of new bar   
-   if(Volume[0] > 1){
-      StopLoss(SL);
-   }else{
-      //--- get data from indicators   
-      double ma = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
-      double rsi = MathFloor(iRSI(NULL,TF,RSI,PRICE_CLOSE,1));
-      double open = Open[1];
-      double high = High[1];
-      double low = Low[1];
-      double close = Close[1];
-            
-      int op_open = CheckForOpen(ma, rsi, open, high, low, close);
+         
+   if(Volume[0] < 1) {
+      //--- get data from indicators
+      double ma    = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
+      double rsi   = MathFloor(iRSI(NULL,TF,RSI,PRICE_CLOSE,1));
+      double open  = Open[1];
+      double high  = High[1];
+      double low   = Low[1];
+      double close = Close[1];      
+      int tickets[];            
+         
+      int op_open = CheckForOpen(ma, rsi, open, high, low, close);      
       if(op_open >= 0){
          if(low > ma && OpenPosition(op_open) > 0){
             Print("[B]Open buy position success!!!");
          }else if(high < ma && OpenPosition(op_open) > 0){
             Print("[S]Open sell position success!!!");
          }
-      }
+      }            
       
-      if(StopLoss(ma, rsi, open, close) >= 0) {
-         Print("Stop loss success.");
+      int sl_op = CheckForStopLoss(ma, rsi, open, close);
+      if(sl_op >= 0) {
+         if(GetOrderTickets(tickets, sl_op)) {
+            if(ClosePosition(tickets)) Print("stop position success!!");;
+         }
       }
       
       int op_close = CheckForClose(ma, rsi, open, high, low, close);
@@ -311,7 +372,7 @@ bool TextCreate(const long              chart_ID=0,               // chart's ID
                 double                  price=0,                  // anchor point price 
                 const string            text=" ",                 // the text itself 
                 const string            font="Arial",             // font 
-                const int               font_size=9,              // font size 
+                const int               font_size=12,              // font size 
                 const color             clr=clrGold,              // color 
                 const double            angle=0.0,                // text slope 
                 const ENUM_ANCHOR_POINT anchor=ANCHOR_LEFT_LOWER, // anchor type 
