@@ -61,53 +61,8 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
    return false;
   }
 //+------------------------------------------------------------------+
-//| StopLoss                                                         |
+//| Check for stoploss                                               |
 //+------------------------------------------------------------------+
-int StopLoss(double ma, double rsi, double open, double close)                                                                 { return(StopLoss(ma, rsi, open, close, SL, _Symbol, MAGICMA, 3)); }
-int StopLoss(double ma, double rsi, double open, double close, double sl, string symbol, double magic_number, int slippage) {
-   double rsi_mid = 50;
-   int counter = 0;
-   if(open > ma && close > open && rsi > rsi_mid) {
-      //---Stop sell
-      for(int i=0;i<OrdersTotal();i++) {
-         if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
-         if(OrderMagicNumber()!=magic_number || OrderSymbol()!=symbol) continue;
-         if(OrderType() == OP_SELL) {
-            if(!OrderClose(OrderTicket(),OrderLots(),Ask,slippage))
-               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
-         }
-      }
-      return 0;
-   }else if(open < ma && close < open && rsi < rsi_mid) {
-      //---Stop buy
-      for(int i=0;i<OrdersTotal();i++) {
-         if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
-         if(OrderMagicNumber()!=magic_number || OrderSymbol()!=symbol) continue;
-         if(OrderType() == OP_BUY) {
-            if(!OrderClose(OrderTicket(),OrderLots(),Bid,slippage))
-               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
-         }
-      }
-      return 1;
-   }
-   return -1;
-}
-void StopLoss(double sl) {
-   double sl_point = MathAbs(AccountBalance() * sl) * -1;
-   for(int i=0;i<OrdersTotal();i++) {
-      if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
-      if(OrderMagicNumber()!=MAGICMA || OrderSymbol()!=Symbol()) continue;
-      if(OrderProfit() <= sl_point){
-         if(OrderType() == OP_BUY){
-            if(!OrderClose(OrderTicket(),OrderLots(),Bid,3))
-               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
-         }else if(OrderType() == OP_SELL){
-            if(!OrderClose(OrderTicket(),OrderLots(),Ask,3))
-               PrintFormat("OrderClose error : %s",ErrorDescription(GetLastError()));
-         }
-      }
-   }   
-}
 int CheckForStopLoss(double ma, double rsi, double open, double close) {
    double rsi_mid = 50;
    if(open < ma && close < open && rsi < rsi_mid) {
@@ -188,14 +143,14 @@ int CheckForOpen(double ma, double rsi, double open, double high, double low, do
   {   
    int doji = Doji(open, high, low, close);
    if(IsBigBlackBar(open, high, low, close)){
-      if(low > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
+      if(open > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
          return OP_BUY;
-      }else if(high < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
+      }else if(open < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
          return OP_SELL;
       }
-   }else if(doji == 0 && close > open && rsi < OVERBOUGHT && low > ma){      
+   }else if(doji == 0 && close > open && rsi < OVERBOUGHT && open > ma){      
       return OP_BUY;
-   }else if(doji == 1 && close < open && rsi > OVERSOLD && high < ma){      
+   }else if(doji == 1 && close < open && rsi > OVERSOLD && open < ma){      
       return OP_SELL;
    }
    return -1;
