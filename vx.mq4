@@ -77,24 +77,22 @@ int CheckForStopLoss(double ma, double rsi, double open, double close) {
 //+------------------------------------------------------------------+
 //| close order                                                      |
 //+------------------------------------------------------------------+
-int ClosePosition()          { return(ClosePosition(TP)); }
-int ClosePosition(double tp) {
+int ClosePosition(int& tickets[], int op, double tp)               { return(ClosePosition(tickets, op, tp, 3)); }
+int ClosePosition(int& tickets[], int op, double tp, int slippage) {
    int counter = 0;
    double tp_point = MathCeil(AccountEquity() * tp);
    if(tp_point <= 0) return -1;
-   for(int i=0;i<OrdersTotal();i++)
-   {
-      if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES)==false) break;
-      if(OrderMagicNumber()!=MAGICMA || OrderSymbol()!=Symbol()) continue;
-      if(OrderProfit() > tp_point){
-         if(OrderType() == OP_BUY){
-            if(OrderClose(OrderTicket(),OrderLots(),Bid,3)) counter++;
-         }else if(OrderType() == OP_SELL){
-            if(OrderClose(OrderTicket(),OrderLots(),Ask,3)) counter++;               
-         }
+   for(int i=0;i<ArrayRange(tickets, 0);i++) {
+      if(OrderSelect(tickets[i], SELECT_BY_TICKET)==false) break;
+      if(OrderType() != op) { continue; }
+      if(OrderProfit() < tp_point) { continue; }
+      if(OrderType() == OP_BUY) {
+         if(OrderClose(tickets[i], OrderLots(), Bid, slippage)) { counter++; }
+      }else if(OrderType() == OP_SELL) {
+         if(OrderClose(tickets[i],OrderLots(), Ask, slippage)) { counter++; }
       }
    }
-   if(counter > 0) return counter;
+   if(counter > 0) { return counter; }
    return -1;
 }
 bool ClosePosition(int& tickets[])               { return(ClosePosition(tickets, 3)); }
@@ -103,9 +101,9 @@ bool ClosePosition(int& tickets[], int slippage) {
    for(int i=0;i<ArrayRange(tickets, 0);i++) {
       if(OrderSelect(tickets[i], SELECT_BY_TICKET)==false) break;
       if(OrderType() == OP_BUY) {
-         if(OrderClose(tickets[i], OrderLots(), Bid, slippage)) counter++;
+         if(OrderClose(tickets[i], OrderLots(), Bid, slippage)) { counter++; }
       }else if(OrderType() == OP_SELL) {
-         if(OrderClose(tickets[i],OrderLots(), Ask, slippage)) counter++;
+         if(OrderClose(tickets[i],OrderLots(), Ask, slippage)) { counter++; }
       }
    }
    if(ArrayRange(tickets, 0) == counter) return true;
@@ -114,25 +112,31 @@ bool ClosePosition(int& tickets[], int slippage) {
 //+------------------------------------------------------------------+
 //| Check for close order                                            |
 //+------------------------------------------------------------------+
-int CheckForClose(double ma, double rsi, double open, double high, double low, double close){   
+int CheckForClose(double ma, double rsi, double open, double high, double low, double close) { return(CheckForClose(ma, rsi, open, high, low, close, 70, 30)); }
+int CheckForClose(double ma, double rsi, double open, double high, double low, double close, double overbought, double oversold) {
+   int doji = Doji(open, high, low, close);
    if(IsBigBlackBar(open, high, low, close)){
-      if(low > ma && close > open && rsi >= OVERBOUGHT){
-         return OP_SELL;
-      }else if(high < ma && close < open && rsi <= OVERSOLD){
+      if(rsi > overbought && open > ma && close > open){
          return OP_BUY;
+      }else if(rsi < oversold && open < ma && close < open){
+         return OP_SELL;
       }
+   }else if(doji == 0 && rsi < 50) {
+      return OP_SELL;
+   }else if(doji == 1 && rsi > 50) {
+      return OP_BUY;
    }
    return -1;
 }
 //+------------------------------------------------------------------+
 //| open order                                                       |
 //+------------------------------------------------------------------+
-int OpenPosition(int OP)              { return(OpenPosition(OP, LotSize)); }
-int OpenPosition(int OP, double lots) {
+int OpenPosition(int OP)              { return(OpenPosition(OP, LotSize, _Symbol, 3, 0, 0, "")); }
+int OpenPosition(int OP, double lots, string symbol, int slippage, double stoploss, double takeprofit, string comment) {
       if(OP == OP_BUY){
-         return OrderSend(Symbol(),OP_BUY,lots,Ask,3,0,0,"",MAGICMA,0);
+         return OrderSend(symbol , OP_BUY, lots, Ask, slippage, stoploss, takeprofit, comment, MAGICMA);
       }else if(OP == OP_SELL){
-         return OrderSend(Symbol(),OP_SELL,lots,Bid,3,0,0,"",MAGICMA,0);
+         return OrderSend(symbol, OP_SELL, lots, Bid, slippage, stoploss, takeprofit, comment, MAGICMA);
       }
       return -1;
    }
@@ -154,24 +158,6 @@ int CheckForOpen(double ma, double rsi, double open, double high, double low, do
       return OP_SELL;
    }
    return -1;
-  }
-//+------------------------------------------------------------------+
-//| Get Current Orders                                               |
-//+------------------------------------------------------------------+
-void CurrentOrders(string symbol, uint &buys, uint &sells)
-  {
-   for(int i = 0;i < OrdersTotal();i++)
-     {
-      if(OrderSelect(i,SELECT_BY_POS,MODE_TRADES) == false){
-         PrintFormat(__FUNCTION__,"Error: Can't Get Current Orders {%s}", GetLastError());
-         break;
-      }
-      if(OrderSymbol() == Symbol() && OrderMagicNumber() == MAGICMA)
-        {
-         if(OrderType() == OP_BUY)  buys++;
-         if(OrderType() == OP_SELL) sells++;
-        }
-     }
   }
 //+------------------------------------------------------------------+
 //| get order ticket function                                        |
@@ -281,38 +267,36 @@ void OnTick()
    TextChange(0,OBJ_TEXT_NAME,text);
    TextMove(0,OBJ_TEXT_NAME,Time[0]+(Time[0]-Time[1]),Ask);
    
-   if(!IsTradeAllowed()) return;
-         
-   if(Volume[0] < 1) {
-      //--- get data from indicators
-      double ma    = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
-      double rsi   = MathFloor(iRSI(NULL,TF,RSI,PRICE_CLOSE,1));
-      double open  = Open[1];
-      double high  = High[1];
-      double low   = Low[1];
-      double close = Close[1];      
-      int tickets[];            
-         
-      int op_open = CheckForOpen(ma, rsi, open, high, low, close);      
-      if(op_open >= 0){
-         if(low > ma && OpenPosition(op_open) > 0){
-            Print("[B]Open buy position success!!!");
-         }else if(high < ma && OpenPosition(op_open) > 0){
-            Print("[S]Open sell position success!!!");
-         }
-      }            
+   if(!IsTradeAllowed()) { return; }   
+   if(Volume[0] > 1)     { return; }
+   
+   //--- get data from indicators
+   double ma    = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
+   double rsi   = MathFloor(iRSI(NULL,TF,RSI,PRICE_CLOSE,1));
+   double open  = Open[1];
+   double high  = High[1];
+   double low   = Low[1];
+   double close = Close[1];      
+   int tickets[];            
       
-      int sl_op = CheckForStopLoss(ma, rsi, open, close);
-      if(sl_op >= 0) {
-         if(GetOrderTickets(tickets, sl_op)) {
-            if(ClosePosition(tickets)) Print("stop position success!!");;
-         }
+   int op_open = CheckForOpen(ma, rsi, open, high, low, close);      
+   if(op_open >= 0){
+      int order_ticket = OpenPosition(op_open);
+      if(order_ticket > 0) {
+         PrintFormat("[%d]Open buy position success", order_ticket);
       }
-      
-      int op_close = CheckForClose(ma, rsi, open, high, low, close);
-      if(op_close >= 0){
-         if(ClosePosition() > 0) Print("Close Position success.");
-      }      
+   }
+   
+   int sl_op = CheckForStopLoss(ma, rsi, open, close);
+   if(sl_op >= 0) {
+      if(GetOrderTickets(tickets, sl_op)) {
+         if(ClosePosition(tickets)) { Print("stop position success!!"); }
+      }
+   }
+   
+   int op_close = CheckForClose(ma, rsi, open, high, low, close);
+   if(op_close >= 0){
+      if(ClosePosition(tickets, op_close, TP) > 0) Print("Close Position success.");
    }
   }
 //+------------------------------------------------------------------+
