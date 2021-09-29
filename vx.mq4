@@ -63,12 +63,12 @@ bool IsBigBlackBar(double open, double high, double low, double close, double ca
 //+------------------------------------------------------------------+
 //| Check for stoploss                                               |
 //+------------------------------------------------------------------+
-int CheckForStopLoss(double ma, double rsi, double open, double close) {
+int CheckForStopLoss(double ma, double rsi, double open, double high, double low, double close) {
    double rsi_mid = 50;
-   if(open < ma && close < open && rsi < rsi_mid) {
+   if(high < ma && close < open && rsi < rsi_mid) {
       //---Stop buy
       return OP_BUY;
-   }else if(open > ma && close > open && rsi > rsi_mid) {
+   }else if(low > ma && close > open && rsi > rsi_mid) {
       //---Stop sell
       return OP_SELL;
    }
@@ -320,7 +320,7 @@ void OnTick()
       }
    }
    
-   int sl_op = CheckForStopLoss(ma, rsi, open, close);
+   int sl_op = CheckForStopLoss(ma, rsi, open, high, low, close);
    if(sl_op >= 0) {
       if(GetOrderTickets(tickets, sl_op)) {
          if(ClosePosition(tickets)) { Print("stop position success!!"); }
