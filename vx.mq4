@@ -112,22 +112,38 @@ bool ClosePosition(int& tickets[], int slippage) {
 //+------------------------------------------------------------------+
 //| Check for close order                                            |
 //+------------------------------------------------------------------+
-int CheckForClose(double ma, double rsi, double open, double high, double low, double close) { return(CheckForClose(ma, rsi, open, high, low, close, 70, 30)); }
-int CheckForClose(double ma, double rsi, double open, double high, double low, double close, double overbought, double oversold) {
-   int doji = Doji(open, high, low, close);
-   if(IsBigBlackBar(open, high, low, close)){
-      if(rsi > overbought && open > ma && close > open){
+int CheckForClose(double ma, int rsi, int doji, double open, double high, double low, double close, int overbought, int oversold) {
+   if(IsBigBlackBar(open, high, low, close)) {
+      if(rsi >= overbought) {         
          return OP_BUY;
-      }else if(rsi < oversold && open < ma && close < open){
+      }else if(rsi <= oversold) {         
          return OP_SELL;
       }
-   }else if(doji == 0 && rsi < 50) {
-      return OP_SELL;
-   }else if(doji == 1 && rsi > 50) {
-      return OP_BUY;
+   }else {
+      if(doji == 0 && rsi < 40) {         
+         return OP_SELL;
+      }else if(doji == 1 && rsi > 60) {         
+         return OP_BUY;
+      }
    }
    return -1;
 }
+//int CheckForClose(double ma, double rsi, double open, double high, double low, double close) { return(CheckForClose(ma, rsi, open, high, low, close, 70, 30)); }
+//int CheckForClose(double ma, double rsi, double open, double high, double low, double close, double overbought, double oversold) {
+//   int doji = Doji(open, high, low, close);
+//   if(IsBigBlackBar(open, high, low, close)){
+//      if(rsi > overbought && open > ma && close > open){
+//         return OP_BUY;
+//      }else if(rsi < oversold && open < ma && close < open){
+//         return OP_SELL;
+//      }
+//   }else if(doji == 0 && rsi < 50) {
+//      return OP_SELL;
+//   }else if(doji == 1 && rsi > 50) {
+//      return OP_BUY;
+//   }
+//   return -1;
+//}
 //+------------------------------------------------------------------+
 //| open order                                                       |
 //+------------------------------------------------------------------+
@@ -143,22 +159,38 @@ int OpenPosition(int OP, double lots, string symbol, int slippage, double stoplo
 //+------------------------------------------------------------------+
 //| Check for open order                                             |
 //+------------------------------------------------------------------+
-int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
-  {   
-   int doji = Doji(open, high, low, close);
-   if(IsBigBlackBar(open, high, low, close)){
-      if(open > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
+int CheckForOpen(double ma, int rsi, int doji, double open, double high, double low, double close, int overbought, int oversold) {
+   if(IsBigBlackBar(open, high, low, close)) {
+      if(open > ma && close > open && rsi <= overbought) {         
          return OP_BUY;
-      }else if(open < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
+      }else if(open < ma && close < open && rsi >= oversold) {
          return OP_SELL;
       }
-   }else if(doji == 0 && close > open && rsi < OVERBOUGHT && open > ma){      
-      return OP_BUY;
-   }else if(doji == 1 && close < open && rsi > OVERSOLD && open < ma){      
-      return OP_SELL;
+   }else {      
+      if(doji == 0 && open > ma && rsi < overbought) {         
+         return OP_BUY;
+      }else if(doji == 1 && open < ma && rsi > oversold) {         
+         return OP_SELL;
+      }
    }
    return -1;
-  }
+}
+//int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
+//  {   
+//   int doji = Doji(open, high, low, close);
+//   if(IsBigBlackBar(open, high, low, close)){
+//      if(open > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
+//         return OP_BUY;
+//      }else if(open < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
+//         return OP_SELL;
+//      }
+//   }else if(doji == 0 && close > open && rsi < OVERBOUGHT && open > ma){      
+//      return OP_BUY;
+//   }else if(doji == 1 && close < open && rsi > OVERSOLD && open < ma){      
+//      return OP_SELL;
+//   }
+//   return -1;
+//  }
 //+------------------------------------------------------------------+
 //| get order ticket function                                        |
 //+------------------------------------------------------------------+
@@ -272,14 +304,15 @@ void OnTick()
    
    //--- get data from indicators
    double ma    = iMA(NULL,TF,MA_PERIOD,0,MODE_SMA,PRICE_CLOSE,1);
-   double rsi   = MathFloor(iRSI(NULL,TF,RSI,PRICE_CLOSE,1));
+   int rsi      = (int)iRSI(NULL,TF,RSI,PRICE_CLOSE,1);   
    double open  = Open[1];
    double high  = High[1];
    double low   = Low[1];
-   double close = Close[1];      
+   double close = Close[1];
+   int doji     = Doji(open, high, low, close);
    int tickets[];            
       
-   int op_open = CheckForOpen(ma, rsi, open, high, low, close);      
+   int op_open = CheckForOpen(ma, rsi, doji, open, high, low, close, 70, 30);      
    if(op_open >= 0){
       int order_ticket = OpenPosition(op_open);
       if(order_ticket > 0) {
@@ -294,7 +327,7 @@ void OnTick()
       }
    }
    
-   int op_close = CheckForClose(ma, rsi, open, high, low, close);
+   int op_close = CheckForClose(ma, rsi, doji, open, high, low, close, 70, 30);
    if(op_close >= 0){
       if(ClosePosition(tickets, op_close, TP) > 0) Print("Close Position success.");
    }
