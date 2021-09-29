@@ -128,22 +128,6 @@ int CheckForClose(double ma, int rsi, int doji, double open, double high, double
    }
    return -1;
 }
-//int CheckForClose(double ma, double rsi, double open, double high, double low, double close) { return(CheckForClose(ma, rsi, open, high, low, close, 70, 30)); }
-//int CheckForClose(double ma, double rsi, double open, double high, double low, double close, double overbought, double oversold) {
-//   int doji = Doji(open, high, low, close);
-//   if(IsBigBlackBar(open, high, low, close)){
-//      if(rsi > overbought && open > ma && close > open){
-//         return OP_BUY;
-//      }else if(rsi < oversold && open < ma && close < open){
-//         return OP_SELL;
-//      }
-//   }else if(doji == 0 && rsi < 50) {
-//      return OP_SELL;
-//   }else if(doji == 1 && rsi > 50) {
-//      return OP_BUY;
-//   }
-//   return -1;
-//}
 //+------------------------------------------------------------------+
 //| open order                                                       |
 //+------------------------------------------------------------------+
@@ -167,30 +151,14 @@ int CheckForOpen(double ma, int rsi, int doji, double open, double high, double 
          return OP_SELL;
       }
    }else {      
-      if(doji == 0 && open > ma && rsi < overbought) {         
+      if(doji == 0 && low > ma && rsi < overbought) {         
          return OP_BUY;
-      }else if(doji == 1 && open < ma && rsi > oversold) {         
+      }else if(doji == 1 && high < ma && rsi > oversold) {         
          return OP_SELL;
       }
    }
    return -1;
 }
-//int CheckForOpen(double ma, double rsi, double open, double high, double low, double close)
-//  {   
-//   int doji = Doji(open, high, low, close);
-//   if(IsBigBlackBar(open, high, low, close)){
-//      if(open > ma && close > open && rsi >= 50 && rsi <= OVERBOUGHT){
-//         return OP_BUY;
-//      }else if(open < ma && close < open && rsi <= 50 && rsi >= OVERSOLD){
-//         return OP_SELL;
-//      }
-//   }else if(doji == 0 && close > open && rsi < OVERBOUGHT && open > ma){      
-//      return OP_BUY;
-//   }else if(doji == 1 && close < open && rsi > OVERSOLD && open < ma){      
-//      return OP_SELL;
-//   }
-//   return -1;
-//  }
 //+------------------------------------------------------------------+
 //| get order ticket function                                        |
 //+------------------------------------------------------------------+
