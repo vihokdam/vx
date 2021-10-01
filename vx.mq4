@@ -11,7 +11,6 @@
 #property strict
 
 #define MAGICMA  20210820
-#define OBJ_TEXT_NAME "obj_name"
 
 input ENUM_TIMEFRAMES TF       = PERIOD_H1;
 input double LOTSIZE           = 0.01;
@@ -26,13 +25,29 @@ double LotSize;
 //+------------------------------------------------------------------+
 //| Doji identify function                                           |
 //+------------------------------------------------------------------+
-int Doji(double open, double high, double low, double close, double dojiBodyPercentage=0.50){
-   double dojiBody = (high - low) * dojiBodyPercentage;
+int Doji(double open, double high, double low, double close) { return(Doji(open, high, low, close, _Symbol, 0.40)); }
+int Doji(double open, double high, double low, double close, string symbol, double dojiBodyPercentage) {
+   double tick_size = MarketInfo(symbol, MODE_TICKSIZE);
+   double dojiBody = ((high - low) / tick_size) * dojiBodyPercentage;
    //--- Dragonfly Doji return 0
-   if((high - close) <= dojiBody && (high - open) <= dojiBody) return 0;
+   if(((high - close) / tick_size) <= dojiBody && ((high - open) / tick_size) <= dojiBody) return 0;
    //--- Gravestone Doji return 1
-   if((close - low) <= dojiBody && (open - low) <= dojiBody) return 1;   
+   if(((close - low) / tick_size) <= dojiBody && ((open - low) / tick_size) <= dojiBody) return 1;
    return -1;
+}
+//+------------------------------------------------------------------+
+//| Big Black bar identify function                                  |
+//+------------------------------------------------------------------+
+bool IsBigBlackBar(double open, double high, double low, double close) { return(IsBigBlackBar(open, high, low, close, _Symbol, 0.20)); }
+bool IsBigBlackBar(double open, double high, double low, double close, string symbol, double candleWickPercentage) {
+   double tick_size = MarketInfo(symbol, MODE_TICKSIZE);
+   double candleWick = ((high - low) / tick_size) * candleWickPercentage;   
+   if(((high - close) / tick_size) <= candleWick && ((open - low) / tick_size) <= candleWick){
+      return true;
+   }else if(((close - low) / tick_size) <= candleWick && ((high - open) / tick_size) <= candleWick){
+      return true;
+   }
+   return false;   
 }
 //+------------------------------------------------------------------+
 //| Bigest bar identify function                                     |
@@ -47,19 +62,6 @@ bool IsBigestBar(uint startBar=1, uint period=5){
    }
    return false;
 }
-//+------------------------------------------------------------------+
-//| Big Black bar identify function                                  |
-//+------------------------------------------------------------------+
-bool IsBigBlackBar(double open, double high, double low, double close, double candleWickPercentage=0.20)
-  {
-   double candleWick = (high - low) * candleWickPercentage;   
-   if((high - close) <= candleWick && (open - low) <= candleWick){
-      return true;
-   }else if((close - low) <= candleWick && (high - open) <= candleWick){
-      return true;
-   }
-   return false;
-  }
 //+------------------------------------------------------------------+
 //| Check for stoploss                                               |
 //+------------------------------------------------------------------+
@@ -120,9 +122,9 @@ int CheckForClose(double ma, int rsi, int doji, double open, double high, double
          return OP_SELL;
       }
    }else {
-      if(doji == 0 && rsi < 40) {         
+      if(doji == 0 && rsi < oversold) {         
          return OP_SELL;
-      }else if(doji == 1 && rsi > 60) {         
+      }else if(doji == 1 && rsi > overbought) {         
          return OP_BUY;
       }
    }
@@ -164,12 +166,12 @@ int CheckForOpen(double ma, int rsi, int doji, double open, double high, double 
 //+------------------------------------------------------------------+
 bool GetOrderTickets(int& tickets[])                                   { return(GetOrderTickets(tickets, _Symbol, MAGICMA)); }
 bool GetOrderTickets(int& tickets[], int OP)                           { return(GetOrderTickets(tickets, OP, _Symbol, MAGICMA)); }
-bool GetOrderTickets(int& tickets[], int OP, string symbol, int magic) {
+bool GetOrderTickets(int& tickets[], int OP, string symbol, int magic_number) {
    int counter = 0;
    int ticket_counter = 0;   
    for(int i=0;i<OrdersTotal();i++){
       if(OrderSelect(i,SELECT_BY_POS)==false) break;
-      if(OrderSymbol() == symbol && OrderMagicNumber() == magic && OrderType() == OP) {
+      if(OrderSymbol() == symbol && OrderMagicNumber() == magic_number && OrderType() == OP) {
          counter++;
          ArrayResize(tickets, counter);
          tickets[ticket_counter] = OrderTicket();
@@ -179,12 +181,12 @@ bool GetOrderTickets(int& tickets[], int OP, string symbol, int magic) {
    if(counter > 0) { return true; }
    return false;
 }
-bool GetOrderTickets(int& tickets[], string symbol, int magic) {
+bool GetOrderTickets(int& tickets[], string symbol, int magic_number) {
    int counter = 0;
    int ticket_counter = 0;   
    for(int i=0;i<OrdersTotal();i++){
       if(OrderSelect(i,SELECT_BY_POS)==false) break;
-      if(OrderSymbol() == symbol && OrderMagicNumber() == magic) {
+      if(OrderSymbol() == symbol && OrderMagicNumber() == magic_number) {
          counter++;
          ArrayResize(tickets, counter);
          tickets[ticket_counter] = OrderTicket();
@@ -220,8 +222,6 @@ double PointValue(double lotsize, string symbol) { return((((MarketInfo(symbol,M
 int OnInit()
   {
 //---   
-   TextCreate(0,OBJ_TEXT_NAME);
-   
    double min_lot = MarketInfo(_Symbol, MODE_MINLOT);
    double max_lot = MarketInfo(_Symbol, MODE_MAXLOT);
    if(LOTSIZE < min_lot) {
@@ -243,8 +243,7 @@ int OnInit()
 //+------------------------------------------------------------------+
 void OnDeinit(const int reason)
   {
-//---
-   TextDelete(0,OBJ_TEXT_NAME);
+//---   
   }
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
@@ -257,15 +256,7 @@ void OnTick()
    if(bars < RSI || bars < MA_PERIOD){
       PrintFormat(__FUNCTION__,"Error: Not enough Bars (%d) for Indicators!",bars);
       return;
-   }
-   
-   //--- draw label on chart
-   string text = StringConcatenate("$",DoubleToStr(AccountProfit(),2),
-   " [",DoubleToStr(AccountEquity(),2),"]",
-   " ",DoubleToStr(AccountInfoDouble(ACCOUNT_MARGIN_LEVEL),2),"%",
-   " ",TimeToString(TimeCurrent(),TIME_MINUTES));
-   TextChange(0,OBJ_TEXT_NAME,text);
-   TextMove(0,OBJ_TEXT_NAME,Time[0]+(Time[0]-Time[1]),Ask);
+   }      
    
    if(!IsTradeAllowed()) { return; }   
    if(Volume[0] > 1)     { return; }
@@ -301,133 +292,3 @@ void OnTick()
    }
   }
 //+------------------------------------------------------------------+
-
-//+------------------------------------------------------------------+ 
-//| Creating Text object                                             | 
-//+------------------------------------------------------------------+ 
-bool TextCreate(const long              chart_ID=0,               // chart's ID 
-                const string            name="Text",              // object name 
-                const int               sub_window=0,             // subwindow index 
-                datetime                time=0,                   // anchor point time 
-                double                  price=0,                  // anchor point price 
-                const string            text=" ",                 // the text itself 
-                const string            font="Arial",             // font 
-                const int               font_size=12,              // font size 
-                const color             clr=clrGold,              // color 
-                const double            angle=0.0,                // text slope 
-                const ENUM_ANCHOR_POINT anchor=ANCHOR_LEFT_LOWER, // anchor type 
-                const bool              back=false,               // in the background 
-                const bool              selection=false,          // highlight to move 
-                const bool              hidden=true,              // hidden in the object list 
-                const long              z_order=0)                // priority for mouse click 
-  { 
-   //--- set anchor point coordinates if they are not set 
-   ChangeTextEmptyPoint(time,price); 
-   //--- reset the error value 
-   ResetLastError(); 
-   //--- create Text object 
-   if(!ObjectCreate(chart_ID,name,OBJ_TEXT,sub_window,time,price)) 
-     { 
-      Print(__FUNCTION__, 
-            ": failed to create \"Text\" object! Error code = ",GetLastError()); 
-      return(false); 
-     } 
-   //--- set the text 
-   ObjectSetString(chart_ID,name,OBJPROP_TEXT,text); 
-   //--- set text font 
-   ObjectSetString(chart_ID,name,OBJPROP_FONT,font); 
-   //--- set font size 
-   ObjectSetInteger(chart_ID,name,OBJPROP_FONTSIZE,font_size); 
-   //--- set the slope angle of the text 
-   ObjectSetDouble(chart_ID,name,OBJPROP_ANGLE,angle); 
-   //--- set anchor type 
-   ObjectSetInteger(chart_ID,name,OBJPROP_ANCHOR,anchor); 
-   //--- set color 
-   ObjectSetInteger(chart_ID,name,OBJPROP_COLOR,clr); 
-   //--- display in the foreground (false) or background (true) 
-   ObjectSetInteger(chart_ID,name,OBJPROP_BACK,back); 
-   //--- enable (true) or disable (false) the mode of moving the object by mouse 
-   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTABLE,selection); 
-   ObjectSetInteger(chart_ID,name,OBJPROP_SELECTED,selection); 
-   //--- hide (true) or display (false) graphical object name in the object list 
-   ObjectSetInteger(chart_ID,name,OBJPROP_HIDDEN,hidden); 
-   //--- set the priority for receiving the event of a mouse click in the chart 
-   ObjectSetInteger(chart_ID,name,OBJPROP_ZORDER,z_order); 
-   //--- successful execution 
-   return(true); 
-  } 
-//+------------------------------------------------------------------+ 
-//| Move the anchor point                                            | 
-//+------------------------------------------------------------------+ 
-bool TextMove(const long   chart_ID=0,  // chart's ID 
-              const string name="Text", // object name 
-              datetime     time=0,      // anchor point time coordinate 
-              double       price=0)     // anchor point price coordinate 
-  { 
-   //--- if point position is not set, move it to the current bar having Bid price 
-   if(!time) 
-      time=TimeCurrent(); 
-   if(!price) 
-      price=SymbolInfoDouble(Symbol(),SYMBOL_BID); 
-   //--- reset the error value 
-   ResetLastError(); 
-   //--- move the anchor point 
-   if(!ObjectMove(chart_ID,name,0,time,price)) 
-     { 
-      Print(__FUNCTION__, 
-            ": failed to move the anchor point! Error code = ",GetLastError()); 
-      return(false); 
-     } 
-   //--- successful execution 
-   return(true); 
-  } 
-//+------------------------------------------------------------------+ 
-//| Change the object text                                           | 
-//+------------------------------------------------------------------+ 
-bool TextChange(const long   chart_ID=0,  // chart's ID 
-                const string name="Text", // object name 
-                const string text="Text") // text 
-  { 
-   //--- reset the error value 
-   ResetLastError(); 
-   //--- change object text 
-   if(!ObjectSetString(chart_ID,name,OBJPROP_TEXT,text)) 
-     { 
-      Print(__FUNCTION__, 
-            ": failed to change the text! Error code = ",GetLastError()); 
-      return(false); 
-     } 
-   //--- successful execution 
-   return(true); 
-  } 
-//+------------------------------------------------------------------+ 
-//| Delete Text object                                               | 
-//+------------------------------------------------------------------+ 
-bool TextDelete(const long   chart_ID=0,  // chart's ID 
-                const string name="Text") // object name 
-  { 
-   //--- reset the error value 
-   ResetLastError(); 
-   //--- delete the object 
-   if(!ObjectDelete(chart_ID,name)) 
-     { 
-      Print(__FUNCTION__, 
-            ": failed to delete \"Text\" object! Error code = ",GetLastError()); 
-      return(false); 
-     } 
-   //--- successful execution 
-   return(true); 
-  }
-//+------------------------------------------------------------------+ 
-//| Check anchor point values and set default values                 | 
-//| for empty ones                                                   | 
-//+------------------------------------------------------------------+ 
-void ChangeTextEmptyPoint(datetime &time,double &price) 
-  { 
-   //--- if the point's time is not set, it will be on the current bar 
-   if(!time) 
-      time=TimeCurrent(); 
-   //--- if the point's price is not set, it will have Bid value 
-   if(!price) 
-      price=SymbolInfoDouble(Symbol(),SYMBOL_BID); 
-  }
